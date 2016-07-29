@@ -154,8 +154,7 @@ class TelegramCommand(models.Model):
         if code:
             safe_eval(code, globals_dict, locals_dict, mode="exec", nocopy=True)
         eval_time = time.time() - t0
-        if eval_time > 0.5:
-            _logger.debug('Eval in %.2fs \nCode:\n%s\n', eval_time, code)
+        _logger.debug('Eval in %.2fs \nlocals_dict:\n%s\nCode:\n%s\n', eval_time, locals_dict, code)
         return locals_dict
 
     def _qcontext(self, locals_dict, tsession):
@@ -170,14 +169,20 @@ class TelegramCommand(models.Model):
         dom = etree.fromstring(template)
         qcontext = self._qcontext(locals_dict, tsession)
         html = self.pool['ir.qweb'].render_node(dom, qcontext)
-        _logger.debug('Render in %.2fs\n qcontext:\n%s \nTemplate:\n%s\n', time.time() - t0, qcontext, template)
-        return {'html': html}
+        render_time = time.time() - t0
+        _logger.debug('Render in %.2fs\n qcontext:\n%s \nTemplate:\n%s\n', render_time, qcontext, template)
+        return {'photos': [],
+                'html': html}
 
     @api.model
     def send(self, bot, rendered, tsession):
         if rendered.get('html'):
             _logger.debug('send %s', rendered.get('html'))
             bot.send_message(tsession.chat_ID, rendered.get('html'), parse_mode='HTML')
+        if rendered.get('photos'):
+            _logger.debug('send photos %s' % len(rendered.get('photos')))
+            for photo in rendered.get('photos'):
+                bot.send_photo(tsession.chat_ID, photo)
 
     # ir.actions.server methods:
     @api.model
