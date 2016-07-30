@@ -23,7 +23,6 @@ from openerp.addons.base.ir.ir_qweb import QWebContext
 
 _logger = logging.getLogger(__name__)
 
-
 class TelegramCommand(models.Model):
     """
         Model represents Telegram commands that may be proceeded.
@@ -47,6 +46,7 @@ class TelegramCommand(models.Model):
     group_ids = fields.Many2many('res.groups', string="Access Groups", help='Who can use this command. Set empty list for public commands (e.g. /login)', default=lambda self: [self.env.ref('base.group_user').id])
     model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id', string="Related models", help='These models changes initiates cache updates for this command')
     user_ids = fields.Many2many('res.users', 'command_to_user_rel', 'telegram_command_id', 'user_id', help='Subscribed users')
+    menu_id = fields.Many2one('ir.ui.menu', 'Command Menu', help='Menu that can be used in command, for example to make search')
 
     _sql_constraints = [
         ('command_name_uniq', 'unique (name)', 'Command name must be unique!'),
@@ -147,6 +147,7 @@ class TelegramCommand(models.Model):
         locals_dict = locals_dict or {}
         user = tsession and tsession.get_user()
         locals_dict.update({
+            'command': self.sudo(user),
             'env': self.env(user=user),
             'data': {},
             'tsession': tsession})
@@ -183,6 +184,115 @@ class TelegramCommand(models.Model):
             _logger.debug('send photos %s' % len(rendered.get('photos')))
             for photo in rendered.get('photos'):
                 bot.send_photo(tsession.chat_ID, photo)
+
+    @api.multi
+    def get_graph_data(self):
+        self.ensure_one()
+        action_model, action_id = self.menu_id.action.split(',')
+        if action_model != 'ir.actions.act_window':
+            return []
+
+        action = self.env[action_model].browse(int(action_id))
+        domain, filters = self.get_action_domain(action)
+        graph_view = self.env[action.res_model].fields_view_get(view_type='graph')['arch']
+
+        graph_config = {
+            'stacked': graph_view.attrib.get('stacked'),
+            'row': [],
+            'measure': None,
+            'groupby': []
+        }
+        for el in etree.fromstring(graph_view):
+            if el.tag != 'field':
+                continue
+            f = el.attrib
+            if f['type'] == 'row':
+                value = f['name']
+                if f.get('interval'):
+                    value += ':' + f.get('interval')
+                graph_config['row'].append(value)
+            elif f['type'] == 'measure':
+                graph_config['measure'] = f['name']
+                graph_config['fields'].append(f['name'])
+
+        res = self.env[action.res_model].read(domain=domain, fields=graph_config['row'] + [graph_config['measure']], fields=graph_config['groupby'])
+
+        measure_field = graph_config.get('measure')
+        xlabels = set()
+        xlabel_field = graph_config['row'][0] # e.g. Stage in CRM Pipeline
+
+        dlabels = set()
+        dlabel_field = graph_config['row'][1] # e.g. Month in CRM Pipeline
+        for r in res:
+            xlabels.add(r[xlabel_field])
+            dlabels.add(r[dlabel_field])
+
+        # res_index = {x_value: {d_value}}
+        res_index = { (x_value, {}) for x_value in xlabels }
+        for r in res:
+            res_index[r[xlabel_field]][r[data_label_field]] = r[measure_field]
+        # data_lines = {d_value: {'values': {x_value}}}
+        data_lines = { (d_value, {'values':[]}) for d_value in data_labels }
+        for d_value, data in data_lines.items():
+            for x_value in xlabels:
+                data['values'].append(res_index[x_value].get(d_value, 0))
+        return {
+            'filters': filters,
+            'x_labels': list(x_labels),
+            'data_lines': data_lines,
+            'stacked': graph_config['stacked']
+        }
+
+
+    @api.model
+    def get_action_domain(self, action):
+        used_filters = [] # [filter_name]
+        eval_vars = {'uid': self.env.uid}
+        filters = self.env['ir.filters'].get_filters(action.res_model, action.id)
+        personal_filter = None
+
+        # get_default_filter function from js:
+        for f in filters:
+            if filter.user_id and filter.is_default:
+                personal_filter = f
+                break
+
+        if not personal_filter:
+            for f in filters:
+                if not filter.user_id and filter.is_default:
+                    personal_filter = f
+                    break
+
+        if personal_filter:
+            default_domains = [personal_filter.domain]
+            used_filters = [{'name': personal_filter.name}]
+        else:
+            # find filter from context, i.e. the same as UI works
+            default_domains = []
+            # parse search view
+            search_view = self.env[action.res_model].fields_view_get(view_id=action.search_view_id.id, view_type='search')['arch']
+            search_view_filters = {}
+            for el in etree.fromstring(search_view):
+                if el.tag != 'filter':
+                    continue
+                f = el.attrib
+                search_view_filters[f['name']] = f
+
+            # proceed context
+            action_context = safe_eval(action.context, eval_vars)
+            for k, v in action_context.items():
+                if not k.startswith('search_default'):
+                    continue
+                filter_name = k.split('search_default_')[1]
+                filter = search_view_filters[filter_name]
+                default_domains.append(filter['domain'])
+                used_filters.append(filter)
+
+        # eval and combine default_domains into one
+        domain = []
+        for d in default_domains:
+            domain += safe_eval(d, eval_vars)
+        return domain, used_filters
 
     # ir.actions.server methods:
     @api.model

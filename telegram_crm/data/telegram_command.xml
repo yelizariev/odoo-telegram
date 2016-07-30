@@ -7,11 +7,14 @@
         <field name="description">Returns Pipeline</field>
         <field name="type">regular</field>
         <field name="universal">False</field>
+        <field name="menu_id" ref="crm.crm_opportunity_report_menu"/>
         <field name="response_code">
-data['filters'] = []
-bar_chart = pygal.HorizontalStackedBar(title = "Remarquable sequences", x_labels = map(str, range(11)))
-bar_chart.add('Fibonacci', [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55])
-bar_chart.add('Padovan', [1, 1, 1, 2, 2, 3, 4, 5, 7, 9, 12])
+graph_data = command.get_graph_data()
+data['filters'] = graph_data['filters']
+bar_chart = pygal.StackedBar(title = "Pipeline", x_labels = map(str, graph_data['x_labels']))
+for d_value, d in data_lines.items():
+    bar_chart.add(d_value, d['values'])
+
 charts.append(bar_chart)
         </field>
         <field name="response_template" type="xml">
