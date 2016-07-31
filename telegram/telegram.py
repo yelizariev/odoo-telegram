@@ -73,11 +73,9 @@ class TelegramCommand(models.Model):
                     self.send(bot, {'html': _('You have to /login first.')}, tsession)
                     return
 
-                print 'sub', tsession.user_id.id, command.user_ids.ids
                 if tsession.user_id.id in command.user_ids.ids:
                     locals_dict['subscribed'] = False
                     command.sudo().write({'user_ids': [(3, tsession.user_id.id, 0)]})
-                    print 'user_ids', command.user_ids.ids
                 else:
                     locals_dict['subscribed'] = True
                     command.sudo().write({'user_ids': [(4, tsession.user_id.id, 0)]})
@@ -188,84 +186,98 @@ class TelegramCommand(models.Model):
     @api.multi
     def get_graph_data(self):
         self.ensure_one()
-        action_model, action_id = self.menu_id.action.split(',')
-        if action_model != 'ir.actions.act_window':
+        action = self.menu_id.action
+        if action._name != 'ir.actions.act_window':
             return []
-
-        action = self.env[action_model].browse(int(action_id))
         domain, filters = self.get_action_domain(action)
         graph_view = self.env[action.res_model].fields_view_get(view_type='graph')['arch']
+        graph_view = etree.fromstring(graph_view)
 
         graph_config = {
             'stacked': graph_view.attrib.get('stacked'),
             'row': [],
             'measure': None,
-            'groupby': []
+            'fields': []
         }
-        for el in etree.fromstring(graph_view):
+        for el in graph_view:
             if el.tag != 'field':
                 continue
             f = el.attrib
             if f['type'] == 'row':
                 value = f['name']
+                graph_config['fields'].append(value)
                 if f.get('interval'):
                     value += ':' + f.get('interval')
                 graph_config['row'].append(value)
             elif f['type'] == 'measure':
-                graph_config['measure'] = f['name']
-                graph_config['fields'].append(f['name'])
+                value = f['name']
+                graph_config['measure'] = value
+                graph_config['fields'].append(value)
 
-        res = self.env[action.res_model].read(domain=domain, fields=graph_config['row'] + [graph_config['measure']], fields=graph_config['groupby'])
+        res = self.env[action.res_model].read_group(
+            domain,
+            fields=graph_config['fields'],
+            groupby=graph_config['row'],
+            lazy=False,
+        )
 
         measure_field = graph_config.get('measure')
-        xlabels = set()
-        xlabel_field = graph_config['row'][0] # e.g. Stage in CRM Pipeline
+        xlabels = []
+        # e.g. Stage in CRM Pipeline
+        xlabel_field = graph_config['row'][0]
 
-        dlabels = set()
-        dlabel_field = graph_config['row'][1] # e.g. Month in CRM Pipeline
+        dlabels = []
+        # e.g. Month in CRM Pipeline
+        dlabel_field = graph_config['row'][1]
         for r in res:
-            xlabels.add(r[xlabel_field])
-            dlabels.add(r[dlabel_field])
+            for a, f in [(xlabels, xlabel_field), (dlabels, dlabel_field)]:
+                # a - array
+                # f - field name
+                # v = value
+                v = r[f]
+                if v not in a:
+                    a.append(v)
 
         # res_index = {x_value: {d_value}}
-        res_index = { (x_value, {}) for x_value in xlabels }
+        res_index = dict([(x_value, {}) for x_value in xlabels])
         for r in res:
-            res_index[r[xlabel_field]][r[data_label_field]] = r[measure_field]
+            res_index[r[xlabel_field]][r[dlabel_field]] = r[measure_field]
         # data_lines = {d_value: {'values': {x_value}}}
-        data_lines = { (d_value, {'values':[]}) for d_value in data_labels }
+        data_lines = dict([(d_value, {'values': []}) for d_value in dlabels])
         for d_value, data in data_lines.items():
             for x_value in xlabels:
                 data['values'].append(res_index[x_value].get(d_value, 0))
-        return {
+        res = {
             'filters': filters,
-            'x_labels': list(x_labels),
+            'x_labels': list(xlabels),
             'data_lines': data_lines,
             'stacked': graph_config['stacked']
         }
+        return res
 
 
     @api.model
     def get_action_domain(self, action):
-        used_filters = [] # [filter_name]
+        used_filters = []
         eval_vars = {'uid': self.env.uid}
         filters = self.env['ir.filters'].get_filters(action.res_model, action.id)
         personal_filter = None
 
         # get_default_filter function from js:
         for f in filters:
-            if filter.user_id and filter.is_default:
+            if f['user_id'] and f['is_default']:
                 personal_filter = f
                 break
 
         if not personal_filter:
             for f in filters:
-                if not filter.user_id and filter.is_default:
+                if not f['user_id'] and f['is_default']:
                     personal_filter = f
                     break
 
         if personal_filter:
-            default_domains = [personal_filter.domain]
-            used_filters = [{'name': personal_filter.name}]
+            default_domains = [personal_filter['domain']]
+            used_filters = [personal_filter]
         else:
             # find filter from context, i.e. the same as UI works
             default_domains = []

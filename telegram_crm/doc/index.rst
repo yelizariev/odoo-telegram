@@ -7,6 +7,6 @@ Usage
 
 * send to Bot::
 
-    /pipeline_report
+    /pipeline
 
 * the Bot will send a chart for you
