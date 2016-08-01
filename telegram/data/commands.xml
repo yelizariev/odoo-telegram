@@ -6,7 +6,6 @@
         <field name="name">/help</field>
         <field name="description">Get list of available commands</field>
         <field name="sequence" eval="1000"/>
-        <field name="type">regular</field>
         <field name="response_code">data = {'all_commands':''}
 all_commands = env['telegram.command'].search([])
 for command in all_commands:
@@ -22,7 +21,6 @@ for command in all_commands:
         <field name="name">/login</field>
         <field name="description">Login in system to get access to commands</field>
         <field name="sequence" eval="0"/>
-        <field name="type">regular</field>
         <field name="response_code">
 
 if tsession.user_id:
@@ -45,7 +43,6 @@ else:
         <field name="name">/logout</field>
         <field name="description">Bot will forget who you are</field>
         <field name="sequence" eval="990"/>
-        <field name="type">regular</field>
         <field name="response_template" type="xml"><t>You successfully logged out.</t></field>
         <field name="post_response_code">
 tsession.unlink()
@@ -74,7 +71,6 @@ data['users'] = env['res.users'].search([('share', '=', False)])
         <field name="name">/me</field>
         <field name="description">Discover who you are</field>
         <field name="sequence" eval="980"/>
-        <field name="type">regular</field>
         <field name="response_template" type="xml"><t>
 <t t-if="tsession.user_id">
 You logged in as <t t-raw="tsession.user_id.name"/>
