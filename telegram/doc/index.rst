@@ -72,5 +72,50 @@ Creating new commands
 * Follow hints to fill the form out
 * Click ``[Save]``
 
+If command type is not ``Normal``, then you have to make further configuration:
+
 * `Enable technical features <https://odoo-development.readthedocs.io/en/latest/odoo/usage/technical-features.html>`_
 
+For periodic reports:
+
+* Open ``Settings / Technical / Automation / Scheduled Actions``
+* Click ``[Create]``
+* At ``Technical Data`` tab specify:
+
+  * **Object**: ``telegram.command``
+  * **Method**: ``action_handle_subscriptions``
+  * **Arguments**: ``(123,)``, where 123 is a ID of you command (can be found in url, when you open command form)
+
+* Click ``[Save]``
+
+For notifications:
+
+* Open ``Settings / Technical / Automation / Automated Actions``
+* Click ``[Create]``
+
+* At ``Conditions`` tab specify:
+
+  * **When to Run**, e.g. ``On Creation & Update``
+  * **Filter** if needed
+
+* At ``Conditions`` tab specify:
+
+  * **Server actions to run** - select ``Telegram: handle subscriptions (finds commands via "Related models" field)``
+
+* Click ``[Save]``
+
+For speeding up responses:
+
+* Open ``Settings / Technical / Automation / Automated Actions``
+* Click ``[Create]``
+
+* At ``Conditions`` tab specify:
+
+  * **When to Run**, e.g. ``On Creation & Update``
+  * **Filter** if needed
+
+* At ``Conditions`` tab specify:
+
+  * **Server actions to run** - select ``Telegram: Update cache (finds commands via "Related models" field)``
+
+* Click ``[Save]``
