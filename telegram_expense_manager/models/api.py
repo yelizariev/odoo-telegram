@@ -25,10 +25,38 @@ TAG2TYPE = {
     TAG_RECEIVABLE: TYPE_RECEIVABLE,
 }
 
+
 ASK_AMOUNT = 'ask_amount'
 ASK_NOTE = 'ask_note'
+ASK_ANALYTIC_TAG = 'ask_analytic_tag'
 ASK_ANALYTIC = 'ask_analytic'
+ASK_PERIODICITY_TYPE = 'ask_periodicity_type'
+ASK_PERIODICITY_AMOUNT = 'ask_periodicity_AMOUNT'
+ASK_NOTIFY_ON_TRANSFER = 'ask_notify_on_transfer'
 
+
+PERIODICITY_OPTIONS = {
+    'day': {
+        1: _("Every day"),
+        2: _("Every 2 days"),
+        3: _("Every 3 days"),
+        4: _("Every 4 days"),
+        5: _("Every 5 days"),
+        6: _("Every 6 days"),
+    },
+    'week': {
+        1: _("Every week"),
+        2: _("Every 2 weeks"),
+        3: _("Every 3 weeks"),
+    },
+    'month': {
+        1: _("Every month"),
+        2: _("Every 2 months"),
+        3: _("Every 3 months"),
+        6: _("Every 6 months"),
+        12: _("Every 12 months"),
+    },
+}
 
 class TelegramCommand(models.Model):
 
@@ -53,6 +81,11 @@ class Partner(models.Model):
         self.em_check_access(record)
         return record
 
+    def em_browse_schedule(self, record_id):
+        record = self.env['account.schedule'].sudo().browse(record_id)
+        self.em_check_access(record)
+        return record
+
     @api.model
     def em_browse_line(self, line_id):
         line = self.env['account.move.line'].sudo().browse(line_id)
@@ -69,10 +102,11 @@ class Partner(models.Model):
         return analytic
 
     @api.multi
-    def em_ask_analytic(self, options, command, record, tag, is_from=None, is_to=None):
+    def em_ask_analytic(self, options, command, record, tag_ref=None, tag_id=None, is_from=None, is_to=None):
         data = {
             'action': ASK_ANALYTIC,
-            'tag': tag,
+            'tag_ref': tag_ref,
+            'tag_id': tag_id,
             'record_id': record.id,
         }
         if is_from or is_to:
@@ -84,7 +118,7 @@ class Partner(models.Model):
                  data.items() +
                  [('analytic_id', an.id)]
              )
-             } for an in self._em_all_analytics(tag)
+             } for an in self._em_all_analytics(tag_ref=tag_ref, tag_id=tag_id)
         ]
         command.keyboard_buttons(options, buttons, row_width=1)
         options['handle_reply']['custom_reply'] = data
@@ -95,6 +129,88 @@ class Partner(models.Model):
 
     def em_ask_note(self, options, command, record):
         self._em_ask(options, command, record, ASK_NOTE)
+
+    def em_ask_analytic_tag(self, options, command, record, is_from=None, is_to=None):
+        data = {
+            'action': ASK_ANALYTIC_TAG,
+            'record_id': record.id,
+        }
+        if is_from or is_to:
+            data['transfer'] = 'from' if is_from else 'to'
+
+        TAG2STRING = {
+            TAG_LIQUIDITY: _("Account"),
+            TAG_PAYABLE: _("Expense"),
+            TAG_RECEIVABLE: _("Income"),
+        }
+        if is_from:
+            del TAG2STRING[TAG_PAYABLE]
+        if is_to:
+            del TAG2STRING[TAG_RECEIVABLE]
+
+        buttons = [
+            {'text': name,
+             'callback_data': dict(
+                 data.items() +
+                 [('tag_ref', tag_ref)]
+             )
+             } for tag_ref, name in TAG2STRING.items()
+        ]
+        command.keyboard_buttons(options, buttons, row_width=1)
+        options['handle_reply']['custom_reply'] = data
+        return buttons
+
+    def em_ask_periodicity_type(self, options, command, record):
+        data = {
+            'action': ASK_PERIODICITY_TYPE,
+            'record_id': record.id,
+        }
+
+        buttons = [
+            {'text': name,
+             'callback_data': dict(
+                 data.items() +
+                 [('periodicity_type', code)]
+             )
+             } for code, name in self.env['account.schedule'].periodicity_type.selection
+        ]
+        command.keyboard_buttons(options, buttons, row_width=1)
+        return buttons
+
+    def em_ask_periodicity_amount(self, options, command, record):
+        data = {
+            'action': ASK_PERIODICITY_AMOUNT,
+            'record_id': record.id,
+        }
+
+        buttons = [
+            {'text': name,
+             'callback_data': dict(
+                 data.items() +
+                 [('value', value)]
+             )
+             } for value, name in PERIODICITY_OPTIONS[record.periodicity_type].items()
+        ]
+        command.keyboard_buttons(options, buttons, row_width=1)
+        options['handle_reply']['custom_reply'] = data
+        return buttons
+
+    def em_ask_notify_on_transfer(self, options, command):
+        data = {
+            'action': ASK_NOTIFY_ON_TRANSFER,
+            'record_id': record.id,
+        }
+
+        buttons = [
+            {'text': name,
+             'callback_data': dict(
+                 data.items() +
+                 [('notify', code)]
+             )
+             } for code, name in self.env['account.schedule'].notify.selection
+        ]
+        command.keyboard_buttons(options, buttons, row_width=1)
+        return buttons
 
     def _em_ask(self, options, command, record, action):
         data = {
@@ -126,6 +242,36 @@ class Partner(models.Model):
             else:
                 analytic_liquidity = self._em_create_analytic(raw_text, tag)
             record._em_update_analytic(analytic_liquidity, TAG2TYPE[tag], callback_data.get('transfer'))
+        return record, error
+
+    @api.multi
+    def em_handle_callback_data_schedule(self, callback_data, raw_text):
+        record = self.em_browse_record(callback_data.get('record_id')) \
+            if callback_data.get('record_id') else None
+        error = None
+
+        if callback_data.get('action') == ASK_AMOUNT:
+            if not record:
+                record = self.env['account.schedule'].create({'user_id': self.env.user.id})
+            record.amount = raw_text
+        elif callback_data.get('action') == ASK_NOTE:
+            record.name = raw_text
+        elif callback_data.get('action') == ASK_ANALYTIC_TAG:
+            pass
+        elif callback_data.get('action') == ASK_ANALYTIC:
+            # TODO: CHECK
+            tag = callback_data.get('tag')
+            if callback_data.get('analytic_id'):
+                analytic_liquidity = self.em_browse_analytic(callback_data.get('analytic_id'))
+            else:
+                analytic_liquidity = self._em_create_analytic(raw_text, tag)
+            record._em_update_analytic(analytic_liquidity, TAG2TYPE[tag], callback_data.get('transfer'))
+        elif callback_data.get('action') == ASK_PERIODICITY_TYPE:
+            pass
+        elif callback_data.get('action') == ASK_PERIODICITY_AMOUNT:
+            pass
+        elif callback_data.get('action') == ASK_NOTIFY_ON_TRANSFER:
+            pass
         return record, error
 
     @api.multi
@@ -242,6 +388,44 @@ class Partner(models.Model):
         return self._em_add_record(text, amount, currency,
                                    JOURNAL_TRANSFER, from_data, to_data)
 
+    def _tag2ref(self):
+        return {
+            self.env.ref(self.env['telegram.command'].TAG_RECEIVABLE).id: TAG_RECEIVABLE,
+            self.env.ref(self.env['telegram.command'].TAG_LIQUIDITY).id: TAG_LIQUIDITY,
+            self.env.ref(self.env['telegram.command'].TAG_PAYABLE).id: TAG_PAYABLE,
+        }
+
+    @api.multi
+    def em_add_record_from_schedule(self, schedule):
+        from_ref = self._tag2ref()[schedule.from_tag_id.id]
+        to_ref = self._tag2ref()[schedule.to_tag_id.id]
+        if from_ref == TAG_RECEIVABLE:
+            account_from = self.env.ref(ACCOUNT_RECEIVABLE)
+            account_to = self.env.ref(ACCOUNT_LIQUIDITY)
+            journal = JOURNAL_RECEIVABLE
+        elif to_ref == TAG_PAYABLE:
+            account_from = self.env.ref(ACCOUNT_LIQUIDITY)
+            account_to = self.env.ref(ACCOUNT_PAYABLE)
+            journal = JOURNAL_PAYABLE
+        else:
+            account_from = self.env.ref(ACCOUNT_LIQUIDITY)
+            account_to = self.env.ref(ACCOUNT_LIQUIDITY)
+            journal = JOURNAL_TRANSFER
+
+        from_data = {
+            'account_id': account_from.id,
+        }
+        to_data = {
+            'account_id': account_to.id,
+        }
+
+        text = schedule.name
+        currency = None
+        amount = schedule.amount
+
+        return self._em_add_record(text, amount, currency,
+                                   journal, from_data, to_data)
+
     def _em_add_record(self,
                        text, amount, currency,
                        journal_ref, from_data, to_data):
@@ -281,6 +465,8 @@ class AccountMove(models.Model):
     """Class for ``record``"""
     _inherit = 'account.move'
 
+    schedule_id = fields.Many2one('account.schedule', help='Schedule which created this record')
+
     @api.multi
     def em_update_amount(self, amount):
         self.ensure_one()
@@ -290,7 +476,6 @@ class AccountMove(models.Model):
                 update_lines.append((1, line.id, {'credit': amount}))
             elif line.is_to:
                 update_lines.append((1, line.id, {'debit': amount}))
-        print 'update_lines', update_lines
         self.write({'line_ids': update_lines})
 
     @api.multi
