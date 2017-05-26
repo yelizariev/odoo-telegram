@@ -103,10 +103,12 @@ class Partner(models.Model):
 
     @api.multi
     def em_ask_analytic(self, options, command, record, tag_ref=None, tag_id=None, is_from=None, is_to=None):
+        if not tag_ref:
+            tag_ref = self._tag2ref()[tag_id]
+
         data = {
             'action': ASK_ANALYTIC,
             'tag_ref': tag_ref,
-            'tag_id': tag_id,
             'record_id': record.id,
         }
         if is_from or is_to:
@@ -236,7 +238,7 @@ class Partner(models.Model):
         elif callback_data.get('action') == ASK_NOTE:
             record.em_update_note(raw_text)
         elif callback_data.get('action') == ASK_ANALYTIC:
-            tag = callback_data.get('tag')
+            tag = callback_data.get('tag_ref')
             if callback_data.get('analytic_id'):
                 analytic_liquidity = self.em_browse_analytic(callback_data.get('analytic_id'))
             else:
@@ -260,7 +262,7 @@ class Partner(models.Model):
             pass
         elif callback_data.get('action') == ASK_ANALYTIC:
             # TODO: CHECK
-            tag = callback_data.get('tag')
+            tag = callback_data.get('tag_ref')
             if callback_data.get('analytic_id'):
                 analytic_liquidity = self.em_browse_analytic(callback_data.get('analytic_id'))
             else:
@@ -292,13 +294,14 @@ class Partner(models.Model):
         return self._em_all_analytics(TAG_PAYABLE)
 
     @api.multi
-    def _em_all_analytics(self, tag, count=False):
+    def _em_all_analytics(self, tag_ref, tag_id=None, count=False):
         self.ensure_one()
-        if not tag:
+        if tag_ref:
+            tag_id = self.env.ref(tag_ref).id
+        if not tag_id:
             return []
-        tag = self.env.ref(tag)
         domain = [('partner_id', '=', self.id)]
-        domain += [('tag_ids', '=', tag.id)]
+        domain += [('tag_ids', '=', tag_id)]
         return self.env['account.analytic.account'].search(domain, count=count)
 
     @api.multi
