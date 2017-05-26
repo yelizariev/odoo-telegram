@@ -473,6 +473,7 @@ data['record'] = schedule
         <field name="response_template" type="xml">
 <t>
     <t t-if="data.get('type') == 'ask_amount'">Send amount of money</t>
+    <t t-elif="data.get('type') == 'no_note'">Specify transaction name (e.g. Salary or Appartament renting)</t>
     <t t-elif="data.get('type') == 'no_tag_from'">Choose Source Type</t>
     <t t-elif="data.get('type') == 'no_analytic_from'">Choose Source</t>
     <t t-elif="data.get('type') == 'no_tag_to'">Choose Destination Type</t>
@@ -494,6 +495,7 @@ data['record'] = schedule
         <field name="response_code">
 ACTION='a'
 EDIT_AMOUNT='am'
+EDIT_NOTE='ent'
 EDIT_FROM='fr'
 EDIT_TO='to'
 EDIT_PERIODICITY_TYPE='pt'
@@ -522,8 +524,6 @@ def edit_button(action, text, record, analytic_id=None):
                ACTION: action,
                RECORD_ID: record.id,
            }}
-    if line_id:
-        button['callback_data'][ANALYTIC_ID] = line_id
     return button
 
 def text_button(text, record):

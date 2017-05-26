@@ -16,7 +16,7 @@ class Schedule(models.Model):
         ]
 
     name = fields.Char('Name')
-    active = fields.Boolean('Active')
+    active = fields.Boolean('Active', default=True)
 
     user_id = fields.Many2one(
         'res.users',
@@ -106,15 +106,17 @@ class Schedule(models.Model):
         for r in self:
             if not r.periodicity_type or not r.periodicity_amount:
                 r.next_date = None
-            if not r.date:
-                r.date = fields.Datetime.now()
+            start = r.date
+            if start:
+                start = fields.Datetime.now()
+            start = fields.Datetime.from_string(start)
             days = r.periodicity_amount
             if r.periodicity_type == 'week':
                 days *= 7
             elif r.periodicity_type == 'monthly':
                 # FIXME: this shifts day of month. It must be, for example, ever 21st day of month, instead of +30 days since last date
                 days *= 30
-            r.next_date = r.date + timedelta(days=days)
+            r.next_date = fields.Datetime.to_string(start + timedelta(days=days))
 
     @api.model
     def action_scheduled_transfers(self):
@@ -125,7 +127,7 @@ class Schedule(models.Model):
         for schedule in self:
             # create record
             # see em_add_record_from_schedule in api.py file
-            record = self.env.user_id.partner_id.em_add_record_from_schedule(schedule=schedule)
+            record = self.env.user.partner_id.em_add_record_from_schedule(schedule=schedule)
 
             # notify
             if schedule.notify == 'instantly':

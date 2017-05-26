@@ -189,7 +189,7 @@ class Partner(models.Model):
             {'text': name,
              'callback_data': dict(
                  data.items() +
-                 [('value', value)]
+                 [('periodicity_amount', value)]
              )
              } for value, name in PERIODICITY_OPTIONS[record.periodicity_type].items()
         ]
@@ -248,7 +248,7 @@ class Partner(models.Model):
 
     @api.multi
     def em_handle_callback_data_schedule(self, callback_data, raw_text):
-        record = self.em_browse_record(callback_data.get('record_id')) \
+        record = self.em_browse_schedule(callback_data.get('record_id')) \
             if callback_data.get('record_id') else None
         error = None
 
@@ -259,21 +259,28 @@ class Partner(models.Model):
         elif callback_data.get('action') == ASK_NOTE:
             record.name = raw_text
         elif callback_data.get('action') == ASK_ANALYTIC_TAG:
-            pass
+            tag = callback_data.get('tag_ref')
+            tag = self.env.ref(tag)
+            if callback_data.get('transfer') == 'from':
+                record.from_tag_id = tag
+            else:
+                record.to_tag_id = tag
         elif callback_data.get('action') == ASK_ANALYTIC:
-            # TODO: CHECK
             tag = callback_data.get('tag_ref')
             if callback_data.get('analytic_id'):
-                analytic_liquidity = self.em_browse_analytic(callback_data.get('analytic_id'))
+                analytic = self.em_browse_analytic(callback_data.get('analytic_id'))
             else:
-                analytic_liquidity = self._em_create_analytic(raw_text, tag)
-            record._em_update_analytic(analytic_liquidity, TAG2TYPE[tag], callback_data.get('transfer'))
+                analytic = self._em_create_analytic(raw_text, tag)
+            if callback_data.get('transfer') == 'from':
+                record.from_analytic_id = analytic
+            else:
+                record.to_analytic_id = analytic
         elif callback_data.get('action') == ASK_PERIODICITY_TYPE:
-            pass
+            record.periodicity_type = callback_data.get('periodicity_type')
         elif callback_data.get('action') == ASK_PERIODICITY_AMOUNT:
-            pass
+            record.periodicity_amount = callback_data.get('periodicity_amount')
         elif callback_data.get('action') == ASK_NOTIFY_ON_TRANSFER:
-            pass
+            record.notify = callback_data.get('notify')
         return record, error
 
     @api.multi
