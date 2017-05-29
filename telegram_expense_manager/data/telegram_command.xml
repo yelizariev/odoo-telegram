@@ -586,10 +586,10 @@ elif telegram.get('callback_type') == 'inline':
 
     elif callback_data.get(ACTION) == EDIT_FROM:
         data['type'] = 'edit_from'
-        partner.em_ask_analytic(options, command, record, tag_id=record.from_tag_id.id)
+        partner.em_ask_analytic(options, command, record, tag_id=record.from_tag_id.id, is_from=True)
     elif callback_data.get(ACTION) == EDIT_TO:
         data['type'] = 'edit_to'
-        partner.em_ask_analytic(options, command, record, tag_id=record.to_tag_id.id)
+        partner.em_ask_analytic(options, command, record, tag_id=record.to_tag_id.id, is_to=True)
 
     elif callback_data.get(ACTION) == EDIT_PERIODICITY_TYPE:
         data['type'] = 'edit_periodicity_type'
@@ -611,11 +611,11 @@ else:
     <t t-if="data['type'] == 'show_record'">Record #<t t-esc="data['record'].id"/>. You can delete it by sending /delete_schedule_<t t-esc="data['record'].id"/>.</t>
     <t t-if="data['type'] == 'edit_note'">Send new Note or click /cancel</t>
     <t t-if="data['type'] == 'edit_amount'">Send new Amount or click /cancel</t>
-    <t t-if="data['type'] == 'edit_from'">Send new Source, choose from existing or click /cancel</t>
-    <t t-if="data['type'] == 'edit_to'">Send new Destination, choose from existing or click /cancel</t>
+    <t t-if="data['type'] == 'edit_from'">Send new Source or choose from existing or click /cancel</t>
+    <t t-if="data['type'] == 'edit_to'">Send new Destination or choose from existing or click /cancel</t>
     <t t-if="data['type'] == 'edit_periodicity_type'">Send new new periodicity type or click /cancel</t>
     <t t-if="data['type'] == 'edit_periodicity_amount'">Send new new periodicity value or click /cancel</t>
-    <t t-if="data['type'] == 'updated'">Done! /record_<t t-esc="data['record'].id"/> is updated.</t>
+    <t t-if="data['type'] == 'updated'">Done! /schedule_<t t-esc="data['record'].id"/> is updated.</t>
 </t>
         </field>
         <field name="notification_code">

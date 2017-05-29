@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from datetime import timedelta
 
 from odoo import models, fields, api
 
+_logger = logging.getLogger(__name__)
 
 class Schedule(models.Model):
 
@@ -107,7 +110,7 @@ class Schedule(models.Model):
             if not r.periodicity_type or not r.periodicity_amount:
                 r.next_date = None
             start = r.date
-            if start:
+            if not start:
                 start = fields.Datetime.now()
             start = fields.Datetime.from_string(start)
             days = r.periodicity_amount
@@ -128,11 +131,11 @@ class Schedule(models.Model):
             # create record
             # see em_add_record_from_schedule in api.py file
             record = self.env.user.partner_id.em_add_record_from_schedule(schedule=schedule)
-
+            _logger.debug("Scheduled by %s transfer is created: %s", schedule, record)
             # notify
             if schedule.notify == 'instantly':
                 command = self.env.ref('telegram_expense_manager.command_schedule')
-                tsession = request.env['telegram.session'].sudo().search([('user_id', '=', schedule.user_id.id)])
+                tsession = self.env['telegram.session'].sudo().search([('user_id', '=', schedule.user_id.id)])
                 command.send_notifications(tsession=tsession, record=record)
 
             # update date

@@ -12,8 +12,6 @@
                             <group>
                                 <field name="user_id"/>
                                 <field name="name"/>
-                                <field name="periodicity_type"/>
-                                <field name="periodicity_amount"/>
                                 <field name="amount"/>
                                 <field name="currency_id"/>
                                 <field name="notify"/>
@@ -26,6 +24,12 @@
                             <group string="To">
                                 <field name="to_tag_id"/>
                                 <field name="to_analytic_id"/>
+                            </group>
+                            <group string="When">
+                                <field name="date"/>
+                                <field name="periodicity_type"/>
+                                <field name="periodicity_amount"/>
+                                <field name="next_date"/>
                             </group>
                         </group>
                     </sheet>

@@ -407,6 +407,14 @@ class Partner(models.Model):
 
     @api.multi
     def em_add_record_from_schedule(self, schedule):
+        if not all([
+                schedule.from_tag_id,
+                schedule.to_tag_id,
+                schedule.from_analytic_id,
+                schedule.to_analytic_id,
+                schedule.amount,
+        ]):
+            return None
         from_ref = self._tag2ref()[schedule.from_tag_id.id]
         to_ref = self._tag2ref()[schedule.to_tag_id.id]
         if from_ref == TAG_RECEIVABLE:
@@ -424,17 +432,21 @@ class Partner(models.Model):
 
         from_data = {
             'account_id': account_from.id,
+            'analytic_account_id': schedule.from_analytic_id.id,
         }
         to_data = {
             'account_id': account_to.id,
+            'analytic_account_id': schedule.to_analytic_id.id,
         }
 
-        text = schedule.name
+        text = schedule.name or _('undefined')
         currency = None
         amount = schedule.amount
 
-        return self._em_add_record(text, amount, currency,
+        record = self._em_add_record(text, amount, currency,
                                    journal, from_data, to_data)
+        record.schedule_id = schedule
+        return record
 
     def _em_add_record(self,
                        text, amount, currency,
@@ -446,7 +458,8 @@ class Partner(models.Model):
             'partner_id': self.id,
             'name': text or 'unknown',
         }
-        amount = float(amount.replace(',', '.'))
+        if isinstance(amount, basestring):
+            amount = float(amount.replace(',', '.'))
 
         # move from source (e.g. wallet)
         credit = common.copy()
