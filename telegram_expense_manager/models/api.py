@@ -174,7 +174,7 @@ class Partner(models.Model):
                  data.items() +
                  [('periodicity_type', code)]
              )
-             } for code, name in self.env['account.schedule'].periodicity_type.selection
+             } for code, name in self.env['account.schedule']._fields['periodicity_type'].selection
         ]
         command.keyboard_buttons(options, buttons, row_width=1)
         return buttons
@@ -197,10 +197,10 @@ class Partner(models.Model):
         options['handle_reply']['custom_reply'] = data
         return buttons
 
-    def em_ask_notify_on_transfer(self, options, command):
+    def em_ask_notify_on_transfer(self, options, command, schedule):
         data = {
             'action': ASK_NOTIFY_ON_TRANSFER,
-            'record_id': record.id,
+            'record_id': schedule.id,
         }
 
         buttons = [
@@ -209,7 +209,7 @@ class Partner(models.Model):
                  data.items() +
                  [('notify', code)]
              )
-             } for code, name in self.env['account.schedule'].notify.selection
+             } for code, name in self.env['account.schedule']._fields['notify'].selection
         ]
         command.keyboard_buttons(options, buttons, row_width=1)
         return buttons

@@ -453,7 +453,7 @@ else:
             partner.em_ask_analytic_tag(options, command, schedule, is_to=True)
         elif not schedule.to_analytic_id:
             data['type'] = 'no_analytic_to'
-            partner.em_ask_analytic(options, command, schedule, tag_id=schedule.to_tag_id.id, is_from=True)
+            partner.em_ask_analytic(options, command, schedule, tag_id=schedule.to_tag_id.id, is_to=True)
 
         elif not schedule.periodicity_type:
             data['type'] = 'no_periodicity_type'
@@ -586,24 +586,24 @@ elif telegram.get('callback_type') == 'inline':
 
     elif callback_data.get(ACTION) == EDIT_FROM:
         data['type'] = 'edit_from'
-        partner.em_ask_analytic(options, command, tag_id=record.from_tag_id.id)
+        partner.em_ask_analytic(options, command, record, tag_id=record.from_tag_id.id)
     elif callback_data.get(ACTION) == EDIT_TO:
         data['type'] = 'edit_to'
-        partner.em_ask_analytic(options, command, tag_id=record.to_tag_id.id)
+        partner.em_ask_analytic(options, command, record, tag_id=record.to_tag_id.id)
 
     elif callback_data.get(ACTION) == EDIT_PERIODICITY_TYPE:
         data['type'] = 'edit_periodicity_type'
-        partner.em_ask_periodicity_type(options, command)
+        partner.em_ask_periodicity_type(options, command, record)
     elif callback_data.get(ACTION) == EDIT_PERIODICITY_AMOUNT:
         data['type'] = 'edit_periodicity_amount'
-        partner.em_ask_periodicity_amount(options, command)
+        partner.em_ask_periodicity_amount(options, command, record)
     elif callback_data.get(ACTION) == EDIT_NOTIFICATION:
         data['type'] = 'edit_periodicity_amount'
-        partner.em_ask_notify_on_transfer(options, command)
+        partner.em_ask_notify_on_transfer(options, command, record)
 else:
     # handle new value of attributes (either click on Reply Keyboard or manual typing)
     data['type'] = 'updated'
-    record, error = partner.em_handle_callback_data(callback_data, raw_text)
+    record, error = partner.em_handle_callback_data_schedule(callback_data, raw_text)
     data['record'] = record
         </field>
         <field name="response_template" type="xml">
